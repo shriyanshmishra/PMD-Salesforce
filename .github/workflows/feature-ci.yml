@@ -71,16 +71,28 @@ jobs:
         mv "$PMD_DIR" pmd
         chmod +x pmd/bin/pmd
 
-
+    # ----------------------------------
     # Run PMD
     # ----------------------------------
     - name: Run PMD
+      continue-on-error: true
       run: |
+        mkdir -p reports
         pmd/bin/pmd check \
           -d force-app \
           -R rulesets/apex/quickstart.xml \
           -f csv \
-          -r pmd-report.csv || true
+          -r reports/pmd-report.csv
+
+    # ----------------------------------
+    # Upload PMD Report
+    # ----------------------------------
+    - name: Upload PMD Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pmd-report
+        path: reports/pmd-report.csv
 
     # ----------------------------------
     # Generate Delta package.xml

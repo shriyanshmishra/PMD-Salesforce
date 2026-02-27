@@ -1,0 +1,109 @@
+name: Feature Branch CI
+
+on:
+  push:
+    branches:
+      - feature
+  pull_request:
+    branches:
+      - feature
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      SCRATCH_ORG_ALIAS: ci-scratch
+      REPORT_FILE: pmd-report.csv
+      RULESET: pmd-ruleset.xml
+      PMD_VERSION: 7.0.0-rc4
+
+    steps:
+
+    # ----------------------------------
+    # Checkout Code
+    # ----------------------------------
+    - name: Checkout Source
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    # ----------------------------------
+    # Setup Node
+    # ----------------------------------
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    # ----------------------------------
+    # Install Salesforce CLI
+    # ----------------------------------
+    - name: Install Salesforce CLI
+      run: |
+        npm install -g @salesforce/cli
+        sf --version
+
+    # ----------------------------------
+    # Authenticate Persistent Scratch Org
+    # ----------------------------------
+    - name: Authenticate Scratch Org
+      env:
+        SF_AUTH_URL: ${{ secrets.SF_SCRATCH_AUTH_URL }}
+      run: |
+        echo "$SF_AUTH_URL" > auth.txt
+        sf org login sfdx-url \
+          --sfdx-url-file auth.txt \
+          --alias $SCRATCH_ORG_ALIAS \
+          --set-default
+
+        sf org display --target-org $SCRATCH_ORG_ALIAS
+
+    # ----------------------------------
+    # Install PMD
+    # ----------------------------------
+    - name: Install PMD
+      run: |
+        wget https://downloads.sourceforge.net/project/pmd/pmd/${PMD_VERSION}/pmd-dist-${PMD_VERSION}-bin.zip -O pmd.zip
+        unzip -q pmd.zip
+        rm pmd.zip
+        PMD_DIR=$(ls -d */ | grep pmd | head -n 1)
+        mv "$PMD_DIR" pmd
+        chmod +x pmd/bin/run.sh
+
+    # ----------------------------------
+    # Generate Delta package.xml
+    # ----------------------------------
+    - name: Generate package.xml
+      run: |
+        git fetch origin main
+        git diff --name-only origin/main...HEAD > changed_files.txt
+        grep '^force-app/main/default/' changed_files.txt > filtered_changed_files.txt || true
+
+        mkdir -p manifest
+        node scripts/generate-package-xml.js filtered_changed_files.txt manifest/package.xml
+
+        echo "Generated package.xml:"
+        cat manifest/package.xml
+
+    # ----------------------------------
+    # Validate Deployment
+    # ----------------------------------
+    - name: Validate Deployment
+      run: |
+        sf project deploy validate \
+          --manifest manifest/package.xml \
+          --target-org $SCRATCH_ORG_ALIAS \
+          --test-level RunLocalTests \
+          --wait 40
+
+    # ----------------------------------
+    # Deploy to Scratch Org
+    # ----------------------------------
+    - name: Deploy Source
+      run: |
+        sf project deploy start \
+          --manifest manifest/package.xml \
+          --target-org $SCRATCH_ORG_ALIAS \
+          --test-level RunLocalTests \
+          --wait 40

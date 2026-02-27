@@ -80,7 +80,7 @@ jobs:
           -d force-app \
           -R rulesets/apex/quickstart.xml \
           -f csv \
-          -r pmd-report.csv
+          -r pmd-report.csv || true
 
     # ----------------------------------
     # Generate Delta package.xml

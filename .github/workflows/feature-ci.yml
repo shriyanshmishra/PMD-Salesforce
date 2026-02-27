@@ -117,4 +117,5 @@ jobs:
           --manifest manifest/package.xml \
           --target-org $SCRATCH_ORG_ALIAS \
           --test-level RunLocalTests \
+          --ignore-conflicts \
           --wait 40

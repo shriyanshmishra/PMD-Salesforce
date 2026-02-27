@@ -71,6 +71,17 @@ jobs:
         mv "$PMD_DIR" pmd
         chmod +x pmd/bin/pmd
 
+
+    # Run PMD
+    # ----------------------------------
+    - name: Run PMD
+      run: |
+        pmd/bin/pmd check \
+          -d force-app \
+          -R rulesets/apex/quickstart.xml \
+          -f csv \
+          -r pmd-report.csv
+
     # ----------------------------------
     # Generate Delta package.xml
     # ----------------------------------
